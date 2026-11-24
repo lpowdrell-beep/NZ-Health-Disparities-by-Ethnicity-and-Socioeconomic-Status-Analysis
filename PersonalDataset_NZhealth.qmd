@@ -1,0 +1,120 @@
+---
+title: "Personal Dataset Project - NZ Health issues by Demographic"
+format: pdf
+Author: Leo Powdrell
+---
+
+
+```{r}
+library(tidyverse)
+
+# 1. Load data
+health_total <- read.csv(file.choose())
+
+# 2. Filter, categorize, and build the subset
+health_subset <- health_total %>%
+  # Remove suppressed values to keep data clean
+  filter(is.na(flag_for_publishing) | flag_for_publishing != "S") %>%
+  mutate(
+    # Categorize the Demographic and Geographic Breakdown Types
+    breakdown_type = case_when(
+      group == "Total" ~ "National Total",
+      str_detect(group, "\\|") ~ "Geography (Region)",
+      str_detect(group, "Quintile") ~ "Socioeconomic Deprivation",
+      group %in% c("Māori", "Pacific", "Asian", "European/Other") ~ "Ethnicity (Racial)",
+      group %in% c("Disabled", "Non-disabled") ~ "Disability Status",
+      TRUE ~ "Age Group"
+    )
+  ) %>%
+  # Select only the necessary columns for my visualizations
+  select(
+    indicator = short.description,
+    population,
+    year,
+    breakdown_type,
+    group,
+    total,
+    total.low.CI,
+    total.high.CI,
+    male,
+    female,
+    estimated.number
+  )
+
+# 3. Check the size and contents of the new dataset
+dim(health_subset)
+head(health_subset)
+```
+
+
+```{r}
+
+shared_order <- c(
+  "Daily smokers",
+  "Daily vaping",
+  "Self-rated health - poor",
+  "Psychological distress - high or very high",
+  "Hazardous drinking pattern (total population)",
+  "Cannabis use - past 12 months"
+  
+)
+
+health_subset <- health_subset %>%
+  mutate(indicator = factor(indicator, levels = shared_order))
+
+health_subset %>%
+  filter(
+    year == 2024,
+    breakdown_type == "Ethnicity (Racial)", 
+    indicator %in% c(
+      "Daily smokers",
+      "Daily vaping",
+      "Hazardous drinking pattern (total population)",
+      "Psychological distress - high or very high",
+      "Self-rated health - poor",
+      "Cannabis use - past 12 months"
+    )
+  ) %>%
+  ggplot(aes(x = total, y = fct_rev(indicator), color = group)) +
+  geom_point(size = 3.5, alpha = 0.9) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Health & Addiction Disparities by Ethnicity (2024)",
+    subtitle = "Prevalence (%) among NZ adults",
+    x = "Prevalence (%)",
+    y = NULL,
+    color = "Ethnicity"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+
+health_subset %>%
+  filter(
+    group %in% c("Quintile 1", "Quintile 5"),
+    indicator %in% c(
+      "Daily smokers",
+      "Daily vaping",
+      "Psychological distress - high or very high",
+      "Self-rated health - poor",
+      "Hazardous drinking pattern (total population)",
+      "Cannabis use - past 12 months"
+    )
+  ) %>%
+  ggplot(aes(x = year, y = total, color = group)) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 2) +
+  facet_wrap(~indicator, scales = "free_y", ncol = 2) +
+  scale_color_manual(
+    values = c("Quintile 1" = "#2b8cbe", "Quintile 5" = "#e34a33"),
+    labels = c("Quintile 1 (Least Deprived)", "Quintile 5 (Most Deprived)")
+  ) +
+  labs(
+    title = "The Deprivation Gap Over Time (2011–2024)",
+    subtitle = "Comparing least vs. most socioeconomically deprived neighbourhoods",
+    x = "Survey Year",
+    y = "Prevalence (%)",
+    color = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+```
